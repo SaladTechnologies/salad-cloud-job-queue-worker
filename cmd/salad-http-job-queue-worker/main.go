@@ -75,7 +75,9 @@ func executeJob(ctx context.Context, job jobs.HTTPJob) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusRequestTimeout || resp.StatusCode == http.StatusTooManyRequests ||
 		(resp.StatusCode >= 500 && resp.StatusCode <= 599) {

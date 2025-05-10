@@ -27,9 +27,9 @@ The following prerequisites are required:
 
 - [Visual Studio Code](https://code.visualstudio.com/download)
 - [Git](https://git-scm.com/downloads)
-- [Go](https://go.dev/dl/) (version 1.22.7 or higher)
+- [Go](https://go.dev/dl/) (version 1.23.0 or higher)
 - [golangci-lint](https://golangci-lint.run/welcome/install/) (version 2.0.0 or higher)
-- [Buf](https://github.com/bufbuild/buf/releases/latest) (version 1.32.0 or higher)
+- [Buf](https://github.com/bufbuild/buf/releases/latest) (version 1.53.0 or higher)
 - [protoc-gen-go](https://pkg.go.dev/google.golang.org/protobuf/cmd/protoc-gen-go), the Google protocol buffer compiler for Go
 - [protoc-gen-go-grpc](https://pkg.go.dev/google.golang.org/grpc/cmd/protoc-gen-go-grpc), the gRPC service binding compiler for Go
 

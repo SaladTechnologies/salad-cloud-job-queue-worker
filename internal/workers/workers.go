@@ -21,9 +21,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var workloadInstanceNotFound = errors.New("workload instance not found")
-var jobNotFound = errors.New("job not found")
-var outputInvalid = errors.New("job output invalid")
+var errWorkloadInstanceNotFound = errors.New("workload instance not found")
+var errJobNotFound = errors.New("job not found")
+var errOutputInvalid = errors.New("job output invalid")
 
 func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecutor, version string) error {
 	logger := log.FromContext(ctx)
@@ -47,7 +47,7 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				// Expected on stop.
-			} else if errors.Is(err, workloadInstanceNotFound) {
+			} else if errors.Is(err, errWorkloadInstanceNotFound) {
 				cancelWorker()
 			} else {
 				panic("an unexpected error occurred")
@@ -84,9 +84,9 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 							if err != nil {
 								if errors.Is(err, context.Canceled) {
 									// Expected on stop.
-								} else if errors.Is(err, workloadInstanceNotFound) {
+								} else if errors.Is(err, errWorkloadInstanceNotFound) {
 									cancelWorker()
-								} else if errors.Is(err, jobNotFound) {
+								} else if errors.Is(err, errJobNotFound) {
 									// TODO: Handle job not found.
 									logger.Warn("job not found")
 								} else {
@@ -148,9 +148,9 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 							if err != nil {
 								if errors.Is(err, context.Canceled) {
 									// Expected on stop.
-								} else if errors.Is(err, workloadInstanceNotFound) {
+								} else if errors.Is(err, errWorkloadInstanceNotFound) {
 									cancelWorker()
-								} else if errors.Is(err, jobNotFound) {
+								} else if errors.Is(err, errJobNotFound) {
 									// TODO: Handle job not found.
 									logger.Warn("job not found")
 								} else {
@@ -204,7 +204,7 @@ func (p *readinessPoller) poll(ctx context.Context) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := p.client.Metadata.GetContainerStatus(ctx)
+		resp, err := p.client.Metadata.GetStatus(ctx)
 		retryDelay := 2 * time.Minute // Default retry delay for errors.
 		if err != nil {
 			failures++
@@ -235,7 +235,7 @@ func (p *readinessPoller) poll(ctx context.Context) error {
 					return ctx.Err()
 				case p.readiness <- false:
 				}
-				return workloadInstanceNotFound
+				return errWorkloadInstanceNotFound
 			default:
 				failures++
 				logger.Error("failed to fetch workload instance status", "status", resp.Metadata.StatusCode)
@@ -297,7 +297,7 @@ func (p *jobPoller) poll(ctx context.Context) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := p.client.Metadata.GetContainerToken(ctx)
+		resp, err := p.client.Metadata.GetToken(ctx)
 		if err != nil {
 			logger.Error("failed to fetch workload instance token", "error", err)
 		}
@@ -313,7 +313,7 @@ func (p *jobPoller) poll(ctx context.Context) error {
 					logger.Error("failed to receive JSON response body fetching workload instance token")
 				}
 			case http.StatusNotFound:
-				return workloadInstanceNotFound
+				return errWorkloadInstanceNotFound
 			default:
 				logger.Error("failed to fetch workload instance token", "status", resp.Metadata.StatusCode)
 			}
@@ -364,7 +364,7 @@ func (p *jobPoller) poll(ctx context.Context) error {
 			case codes.Canceled:
 				return ctx.Err()
 			case codes.NotFound:
-				return jobNotFound
+				return errJobNotFound
 			case codes.OK:
 			ReceiveLoop:
 				for {
@@ -397,7 +397,7 @@ func (p *jobPoller) poll(ctx context.Context) error {
 						case codes.Canceled:
 							return ctx.Err()
 						case codes.NotFound:
-							return jobNotFound
+							return errJobNotFound
 						case codes.PermissionDenied:
 							reauth = true
 							break ReceiveLoop
@@ -482,7 +482,7 @@ func (h *jobHandler) execute(ctx context.Context) error {
 		err = h.reject(ctx)
 	} else {
 		err = h.complete(ctx, responseBody)
-		if errors.Is(err, outputInvalid) {
+		if errors.Is(err, errOutputInvalid) {
 			logger.Warn("invalid job output", "jobId", h.job.JobId)
 			err = h.reject(ctx)
 		}
@@ -500,7 +500,7 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := h.client.Metadata.GetContainerToken(ctx)
+		resp, err := h.client.Metadata.GetToken(ctx)
 		if err != nil {
 			logger.Error("failed to fetch workload instance token", "error", err)
 		}
@@ -516,7 +516,7 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 					logger.Error("failed to receive JSON response body fetching workload instance token")
 				}
 			case http.StatusNotFound:
-				return workloadInstanceNotFound
+				return errWorkloadInstanceNotFound
 			default:
 				logger.Error("failed to fetch workload instance token", "status", resp.Metadata.StatusCode)
 			}
@@ -561,7 +561,7 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 			case codes.Canceled:
 				return ctx.Err()
 			case codes.InvalidArgument:
-				return outputInvalid
+				return errOutputInvalid
 			case codes.NotFound:
 				logger.Info("job not found", "jobId", h.job.JobId)
 				return nil
@@ -571,7 +571,7 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 			case codes.PermissionDenied:
 				reauth = true
 			case codes.ResourceExhausted:
-				return outputInvalid
+				return errOutputInvalid
 			case codes.Unauthenticated:
 				reauth = true
 			default:
@@ -613,7 +613,7 @@ func (h *jobHandler) reject(ctx context.Context) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := h.client.Metadata.GetContainerToken(ctx)
+		resp, err := h.client.Metadata.GetToken(ctx)
 		if err != nil {
 			logger.Error("failed to fetch workload instance token", "error", err)
 		}
@@ -629,7 +629,7 @@ func (h *jobHandler) reject(ctx context.Context) error {
 					logger.Error("failed to receive JSON response body fetching workload instance token")
 				}
 			case http.StatusNotFound:
-				return workloadInstanceNotFound
+				return errWorkloadInstanceNotFound
 			default:
 				logger.Error("failed to fetch workload instance token", "status", resp.Metadata.StatusCode)
 			}

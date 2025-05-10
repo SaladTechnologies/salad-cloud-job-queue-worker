@@ -30,8 +30,11 @@ func newQueueConnection(ctx context.Context, addr string, useTLS bool, version s
 			{
 				"name": [{"service": "salad.grpc.saladcloud_job_queue_worker.v1alpha.JobQueueWorkerService"}],
 				"retryPolicy": {
-					"MaxAttempts": 5,
-					"RetryableStatusCodes": ["UNKNOWN", "INTERNAL", "UNAVAILABLE"]
+					"maxAttempts": 5,
+					"initialBackoff": "0.1s",
+					"maxBackoff": "1s",
+					"backoffMultiplier": 2,
+					"retryableStatusCodes": ["UNKNOWN", "INTERNAL", "UNAVAILABLE"]
 				},
 				"timeout": "30s",
 				"waitForReady": true
@@ -39,8 +42,11 @@ func newQueueConnection(ctx context.Context, addr string, useTLS bool, version s
 			{
 				"name": [{"service": "salad.grpc.saladcloud_job_queue_worker.v1alpha.JobQueueWorkerService", "method": "AcceptJobs"}],
 				"retryPolicy": {
-					"MaxAttempts": 5,
-					"RetryableStatusCodes": ["UNKNOWN", "INTERNAL", "UNAVAILABLE"]
+					"maxAttempts": 5,
+					"initialBackoff": "0.1s",
+					"maxBackoff": "1s",
+					"backoffMultiplier": 2,
+					"retryableStatusCodes": ["UNKNOWN", "INTERNAL", "UNAVAILABLE"]
 				},
 				"timeout": null,
 				"waitForReady": true

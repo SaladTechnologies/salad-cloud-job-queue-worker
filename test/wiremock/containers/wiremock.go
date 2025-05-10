@@ -32,7 +32,7 @@ func StartWiremockContainer(ctx context.Context, mappings []WiremockMapping) (*W
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "wiremock/wiremock:3.9.2-1-alpine",
+			Image:        "wiremock/wiremock:3.13.0-1-alpine",
 			Env:          map[string]string{"WIREMOCK_OPTIONS": "--disable-banner"},
 			ExposedPorts: []string{"8080/tcp"},
 			Files:        files,
