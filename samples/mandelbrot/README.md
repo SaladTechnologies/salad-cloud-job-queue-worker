@@ -41,13 +41,62 @@ The following prerequisites are required:
 
 1. Create a SaladCloud Job Queue.
 
-2. Create a SaladCloud Container Group Deployment using the image pushed from step #4 of the "Building the Images" section.
+2. Create a SaladCloud Container Group Deployment using the image pushed from step #4 of the "Building the Images" section with the Job Queue created in step #1.
 
-   - Select the least restrictive hardware requirements available.
-   - Configure an HTTP liveness probe at path `/health` and port `80`.
-   - Configure an HTTP readiness probe at path `/health` and port `80`.
-   - Connect the deployment to the SaladCloud Job Queue created from step #1.
-   - Set the `SALAD_LOG_LEVEL` environment variable to `debug` to monitor the SaladCloud Job Queue Worker's step-by-step activity.
+   An example [Create Container Group API](https://docs.salad.com/reference/saladcloud-api/container_groups/create-a-container-group) request body:
+
+   ```json
+   {
+     "autostart_policy": true,
+     "container": {
+       "image": "my-mandelbrot-worker:latest",
+       "resources": {
+         "cpu": "1",
+         "memory": "1024"
+       },
+       "environment_variables": {
+         "SALAD_LOG_LEVEL": "debug"
+       },
+       "image_caching": true,
+       "priority": "batch"
+     },
+     "name": "my-mandelbrot-worker",
+     "replicas": 1,
+     "restart_policy": "always",
+     "country_codes": [],
+     "liveness_probe": {
+       "failure_threshold": 3,
+       "initial_delay_seconds": 10,
+       "period_seconds": 10,
+       "success_threshold": 1,
+       "timeout_seconds": 5,
+       "http": {
+         "headers": [],
+         "path": "/health",
+         "port": 80,
+         "scheme": "http"
+       }
+     },
+     "queue_connection": {
+       "path": "/generate",
+       "port": 80,
+       "queue_name": "my-mandelbrot-queue"
+     },
+     "readiness_probe": {
+       "failure_threshold": 3,
+       "initial_delay_seconds": 10,
+       "period_seconds": 10,
+       "success_threshold": 1,
+       "timeout_seconds": 5,
+       "http": {
+         "headers": [],
+         "path": "/health",
+         "port": 80,
+         "scheme": "http"
+       }
+     }
+   }
+   ```
 
 3. Submit a job to the SaladCloud Job Queue created from step #1 with a request body like the following:
 
