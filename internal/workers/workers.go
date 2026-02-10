@@ -31,7 +31,7 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 	defer cancelWorker()
 
 	client := newMetadataClient(config.MetadataURI)
-	conn, err := newQueueConnection(workerCtx, config.ServiceEndpoint, config.ServiceUseTLS, version)
+	conn, err := newQueueConnection(workerCtx, config.ServiceEndpoint, config.ServiceUseTLS, config.GrpcMaxMessageSize, version)
 	if err != nil {
 		return err
 	}
