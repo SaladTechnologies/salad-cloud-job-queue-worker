@@ -6,7 +6,7 @@
 # temporary files which can be created if a process still has a handle open of a deleted file
 .fuse_hidden*
 
-# KDE directory preferences
+# Metadata left by Dolphin file manager, which comes with KDE Plasma
 .directory
 
 # Linux trash folder which might appear on any partition or disk
@@ -15,16 +15,18 @@
 # .nfs files are created when an open file is removed but is still being accessed
 .nfs*
 
+# Log files created by default by the nohup command
+nohup.out
+
 ## macOS.gitignore
 ## https://github.com/github/gitignore
 
 # General
 .DS_Store
+__MACOSX/
 .AppleDouble
 .LSOverride
-
-# Icon must end with two \r
-Icon
+Icon[]
 
 # Thumbnails
 ._*
@@ -89,8 +91,11 @@ $RECYCLE.BIN/
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
+# Code coverage profiles and other test artifacts
 *.out
+coverage.*
+*.coverprofile
+profile.cov
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -102,6 +107,10 @@ go.work.sum
 # env file
 .env
 
+# Editor/IDE
+# .idea/
+# .vscode/
+
 ## VisualStudioCode.gitignore
 ## https://github.com/github/gitignore
 
@@ -111,9 +120,7 @@ go.work.sum
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
-
-# Local History for Visual Studio Code
-.history/
+!*.code-workspace
 
 # Built Visual Studio Code Extensions
 *.vsix

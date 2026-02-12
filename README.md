@@ -9,7 +9,7 @@
 This project contains the SaladCloud Job Queue Worker, SDK, and samples. Refer to the [Job Queues documentation](https://docs.salad.com/products/sce/job-queues/job-queues) for more information on using this with your SaladCloud-deployed workloads.
 
 > [!NOTE]
-> The SaladCloud Job Queue Worker will currently only run successfully on a SaladCloud node due to a dependency on the [SaladCloud Instance Metadata Service (IMDS)](https://docs.salad.com/products/sce/container-groups/imds/introduction). We plan to provide a tool to faciliate local testing in the future.
+> The SaladCloud Job Queue Worker will currently only run successfully on a SaladCloud node due to a dependency on the [SaladCloud Instance Metadata Service (IMDS)](https://docs.salad.com/products/sce/container-groups/imds/introduction). We plan to provide a tool to facilitate local testing in the future.
 
 ## Configuration
 
@@ -27,9 +27,9 @@ The following prerequisites are required:
 
 - [Visual Studio Code](https://code.visualstudio.com/download)
 - [Git](https://git-scm.com/downloads)
-- [Go](https://go.dev/dl/) (version 1.23.0 or higher)
+- [Go](https://go.dev/dl/) (version 1.24.0 or higher)
 - [golangci-lint](https://golangci-lint.run/welcome/install/) (version 2.0.0 or higher)
-- [Buf](https://github.com/bufbuild/buf/releases/latest) (version 1.53.0 or higher)
+- [Buf](https://github.com/bufbuild/buf/releases/latest) (version 1.65.0 or higher)
 - [protoc-gen-go](https://pkg.go.dev/google.golang.org/protobuf/cmd/protoc-gen-go), the Google protocol buffer compiler for Go
 - [protoc-gen-go-grpc](https://pkg.go.dev/google.golang.org/grpc/cmd/protoc-gen-go-grpc), the gRPC service binding compiler for Go
 
