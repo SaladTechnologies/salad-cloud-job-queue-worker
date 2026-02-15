@@ -16,7 +16,13 @@ import (
 // Creates a connection to the SaladCloud Job Queues service.
 func newQueueConnection(ctx context.Context, addr string, useTLS bool, version string) (*grpc.ClientConn, error) {
 	var userAgent = fmt.Sprintf("salad-cloud-job-queue-worker/%s grpc-go/%s", version, grpc.Version)
-	opts := []grpc.DialOption{grpc.WithUserAgent(userAgent)}
+	opts := []grpc.DialOption{
+		grpc.WithUserAgent(userAgent),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(10*1024*1024), // 10 MB max receive
+			grpc.MaxCallSendMsgSize(10*1024*1024), // 10 MB max send
+		),
+	}
 	if useTLS {
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
 			InsecureSkipVerify: false,
