@@ -51,8 +51,8 @@ The following prerequisites are required:
      "container": {
        "image": "my-mandelbrot-worker:latest",
        "resources": {
-         "cpu": "1",
-         "memory": "1024"
+         "cpu": 1,
+         "memory": 1024
        },
        "environment_variables": {
          "SALAD_LOG_LEVEL": "debug"
