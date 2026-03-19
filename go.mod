@@ -9,7 +9,7 @@ require (
 	github.com/cloudflare/backoff v0.0.0-20240920015135-e46b80a3a7d0
 	github.com/saladtechnologies/salad-cloud-imds-sdk-go v0.9.0-alpha.5
 	github.com/testcontainers/testcontainers-go v0.40.0
-	google.golang.org/grpc v1.79.0
+	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
 )
 
