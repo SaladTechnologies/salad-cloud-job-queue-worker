@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudflare/backoff"
+	"github.com/saladtechnologies/salad-cloud-imds-sdk-go/pkg/metadata"
 	"github.com/saladtechnologies/salad-cloud-imds-sdk-go/pkg/saladcloudimdssdk"
 	queues_api "github.com/saladtechnologies/salad-cloud-job-queue-worker/internal/apis/queues"
 	"github.com/saladtechnologies/salad-cloud-job-queue-worker/pkg/config"
@@ -204,7 +205,11 @@ func (p *readinessPoller) poll(ctx context.Context) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := p.client.Metadata.GetStatus(ctx)
+		metadata_value := metadata.METADATA_TRUE
+		params := metadata.GetStatusRequestParams{
+			Metadata: &metadata_value,
+		}
+		resp, err := p.client.Metadata.GetStatus(ctx, params)
 		retryDelay := 2 * time.Minute // Default retry delay for errors.
 		if err != nil {
 			failures++
@@ -297,7 +302,11 @@ func (p *jobPoller) poll(ctx context.Context) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := p.client.Metadata.GetToken(ctx)
+		metadata_value := metadata.METADATA_TRUE
+		params := metadata.GetTokenRequestParams{
+			Metadata: &metadata_value,
+		}
+		resp, err := p.client.Metadata.GetToken(ctx, params)
 		if err != nil {
 			logger.Error("failed to fetch workload instance token", "error", err)
 		}
@@ -500,7 +509,11 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := h.client.Metadata.GetToken(ctx)
+		metadata_value := metadata.METADATA_TRUE
+		params := metadata.GetTokenRequestParams{
+			Metadata: &metadata_value,
+		}
+		resp, err := h.client.Metadata.GetToken(ctx, params)
 		if err != nil {
 			logger.Error("failed to fetch workload instance token", "error", err)
 		}
@@ -613,7 +626,11 @@ func (h *jobHandler) reject(ctx context.Context) error {
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
 		// exponential backoff algorithm. Eventually, it will give up and return
 		// the last error.
-		resp, err := h.client.Metadata.GetToken(ctx)
+		metadata_value := metadata.METADATA_TRUE
+		params := metadata.GetTokenRequestParams{
+			Metadata: &metadata_value,
+		}
+		resp, err := h.client.Metadata.GetToken(ctx, params)
 		if err != nil {
 			logger.Error("failed to fetch workload instance token", "error", err)
 		}
