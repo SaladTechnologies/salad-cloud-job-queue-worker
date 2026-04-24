@@ -23,13 +23,14 @@ import (
 )
 
 var errWorkloadInstanceNotFound = errors.New("workload instance not found")
+var errWorkloadTokenUnavailable = errors.New("workload token unavailable")
 var errJobNotFound = errors.New("job not found")
 var errOutputInvalid = errors.New("job output invalid")
 
 func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecutor, version string) error {
 	logger := log.FromContext(ctx)
-	workerCtx, cancelWorker := context.WithCancel(ctx)
-	defer cancelWorker()
+	workerCtx, cancelWorker := context.WithCancelCause(ctx)
+	defer cancelWorker(nil)
 
 	client := newMetadataClient(config.MetadataURI)
 	conn, err := newQueueConnection(workerCtx, config.ServiceEndpoint, config.ServiceUseTLS, version)
@@ -49,9 +50,12 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 			if errors.Is(err, context.Canceled) {
 				// Expected on stop.
 			} else if errors.Is(err, errWorkloadInstanceNotFound) {
-				cancelWorker()
+				cancelWorker(nil)
+			} else if errors.Is(err, errWorkloadTokenUnavailable) {
+				cancelWorker(errWorkloadTokenUnavailable)
 			} else {
-				panic("an unexpected error occurred")
+				logger.Error("an unexpected error occurred", "error", err)
+				cancelWorker(err)
 			}
 		}
 	}()
@@ -72,6 +76,10 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 				if cancelJobPoller != nil {
 					cancelJobPoller()
 				}
+				cause := context.Cause(workerCtx)
+				if errors.Is(cause, errWorkloadTokenUnavailable) {
+					reallocate(ctx, client, "failed to fetch workload instance token")
+				}
 				return workerCtx.Err()
 			case nextReady := <-readinessPoller.next():
 				if nextReady != ready {
@@ -86,12 +94,15 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 								if errors.Is(err, context.Canceled) {
 									// Expected on stop.
 								} else if errors.Is(err, errWorkloadInstanceNotFound) {
-									cancelWorker()
+									cancelWorker(nil)
+								} else if errors.Is(err, errWorkloadTokenUnavailable) {
+									cancelWorker(errWorkloadTokenUnavailable)
 								} else if errors.Is(err, errJobNotFound) {
 									// TODO: Handle job not found.
 									logger.Warn("job not found")
 								} else {
-									panic("an unexpected error occurred")
+									logger.Error("an unexpected error occurred", "error", err)
+									cancelWorker(err)
 								}
 							}
 						}()
@@ -119,8 +130,13 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 					if err != nil {
 						if errors.Is(err, context.Canceled) {
 							// Expected on stop.
+						} else if errors.Is(err, errWorkloadInstanceNotFound) {
+							cancelWorker(nil)
+						} else if errors.Is(err, errWorkloadTokenUnavailable) {
+							cancelWorker(errWorkloadTokenUnavailable)
 						} else {
-							panic("an unexpected error occurred")
+							logger.Error("an unexpected error occurred", "error", err)
+							cancelWorker(err)
 						}
 					}
 				}()
@@ -136,6 +152,10 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 				if cancelJobPoller != nil {
 					cancelJobPoller()
 				}
+				cause := context.Cause(workerCtx)
+				if errors.Is(cause, errWorkloadTokenUnavailable) {
+					reallocate(ctx, client, "failed to fetch workload instance token")
+				}
 				return workerCtx.Err()
 			case nextReady := <-readinessPoller.next():
 				if nextReady != ready {
@@ -150,12 +170,15 @@ func Run(ctx context.Context, config config.Config, executor jobs.HTTPJobExecuto
 								if errors.Is(err, context.Canceled) {
 									// Expected on stop.
 								} else if errors.Is(err, errWorkloadInstanceNotFound) {
-									cancelWorker()
+									cancelWorker(nil)
+								} else if errors.Is(err, errWorkloadTokenUnavailable) {
+									cancelWorker(errWorkloadTokenUnavailable)
 								} else if errors.Is(err, errJobNotFound) {
 									// TODO: Handle job not found.
 									logger.Warn("job not found")
 								} else {
-									panic("an unexpected error occurred")
+									logger.Error("an unexpected error occurred", "error", err)
+									cancelWorker(err)
 								}
 							}
 						}()
@@ -210,7 +233,7 @@ func (p *readinessPoller) poll(ctx context.Context) error {
 			Metadata: &metadata_value,
 		}
 		resp, err := p.client.Metadata.GetStatus(ctx, params)
-		retryDelay := 2 * time.Minute // Default retry delay for errors.
+		retryDelay := 1 * time.Minute // Default retry delay for errors.
 		if err != nil {
 			failures++
 			logger.Error("failed to fetch workload instance status", "error", err)
@@ -296,7 +319,8 @@ func (p *jobPoller) next() <-chan *queues_api.Job {
 // This function will block until the context is canceled or an error occurs.
 func (p *jobPoller) poll(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	bo := backoff.New(2*time.Minute, 1*time.Second)
+	bo := backoff.New(1*time.Minute, 1*time.Second)
+	token_failures := 0
 	for {
 		// The client will automatically retry several times on network errors,
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
@@ -329,7 +353,13 @@ func (p *jobPoller) poll(ctx context.Context) error {
 		}
 
 		if token == "" {
-			delay := time.NewTimer(2 * time.Minute)
+			token_failures++
+			if token_failures > 5 {
+				logger.Error("failed to fetch workload instance token after multiple attempts")
+				return errWorkloadTokenUnavailable
+			}
+
+			delay := time.NewTimer(1 * time.Minute)
 			select {
 			case <-ctx.Done():
 				delay.Stop()
@@ -338,6 +368,8 @@ func (p *jobPoller) poll(ctx context.Context) error {
 				continue
 			}
 		}
+
+		token_failures = 0
 
 		// TODO: Create a new cancelable context with "cause"; start the watchdog timer goroutine with this context.
 		authCtx := createAuthorizedContext(ctx, token)
@@ -358,7 +390,7 @@ func (p *jobPoller) poll(ctx context.Context) error {
 			stat, ok := status.FromError(err)
 			if !ok {
 				logger.Error("failed to open job stream", "error", err)
-				delay := time.NewTimer(2 * time.Minute)
+				delay := time.NewTimer(1 * time.Minute)
 				select {
 				case <-ctx.Done():
 					delay.Stop()
@@ -425,7 +457,7 @@ func (p *jobPoller) poll(ctx context.Context) error {
 				reauth = true
 			default:
 				logger.Error("failed to open job stream", "error", err)
-				delay := time.NewTimer(2 * time.Minute)
+				delay := time.NewTimer(1 * time.Minute)
 				select {
 				case <-ctx.Done():
 					delay.Stop()
@@ -503,7 +535,8 @@ func (h *jobHandler) execute(ctx context.Context) error {
 
 func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 	logger := log.FromContext(ctx)
-	bo := backoff.New(time.Minute*2, time.Second*1)
+	bo := backoff.New(1*time.Minute, 1*time.Second)
+	token_failures := 0
 	for {
 		// The client will automatically retry several times on network errors,
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
@@ -536,7 +569,13 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 		}
 
 		if token == "" {
-			delay := time.NewTimer(2 * time.Minute)
+			token_failures++
+			if token_failures > 5 {
+				logger.Error("failed to fetch workload instance token after multiple attempts")
+				return errWorkloadTokenUnavailable
+			}
+
+			delay := time.NewTimer(1 * time.Minute)
 			select {
 			case <-ctx.Done():
 				delay.Stop()
@@ -545,6 +584,8 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 				continue
 			}
 		}
+
+		token_failures = 0
 
 		authCtx := createAuthorizedContext(ctx, token)
 		client := queues_api.NewJobQueueWorkerServiceClient(h.conn)
@@ -559,7 +600,7 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 			stat, ok := status.FromError(err)
 			if !ok {
 				logger.Error("failed to complete job", "error", err)
-				delay := time.NewTimer(2 * time.Minute)
+				delay := time.NewTimer(1 * time.Minute)
 				select {
 				case <-ctx.Done():
 					delay.Stop()
@@ -589,7 +630,7 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 				reauth = true
 			default:
 				logger.Error("failed to complete job", "error", err)
-				delay := time.NewTimer(2 * time.Minute)
+				delay := time.NewTimer(1 * time.Minute)
 				select {
 				case <-ctx.Done():
 					delay.Stop()
@@ -620,7 +661,8 @@ func (h *jobHandler) complete(ctx context.Context, responseBody []byte) error {
 
 func (h *jobHandler) reject(ctx context.Context) error {
 	logger := log.FromContext(ctx)
-	bo := backoff.New(time.Minute*2, time.Second*1)
+	bo := backoff.New(1*time.Minute, 1*time.Second)
+	token_failures := 0
 	for {
 		// The client will automatically retry several times on network errors,
 		// invalid responses, 429's, and 5xx's (except 501's) using a short,
@@ -653,7 +695,13 @@ func (h *jobHandler) reject(ctx context.Context) error {
 		}
 
 		if token == "" {
-			delay := time.NewTimer(2 * time.Minute)
+			token_failures++
+			if token_failures > 5 {
+				logger.Error("failed to fetch workload instance token after multiple attempts")
+				return errWorkloadTokenUnavailable
+			}
+
+			delay := time.NewTimer(1 * time.Minute)
 			select {
 			case <-ctx.Done():
 				delay.Stop()
@@ -662,6 +710,8 @@ func (h *jobHandler) reject(ctx context.Context) error {
 				continue
 			}
 		}
+
+		token_failures = 0
 
 		authCtx := createAuthorizedContext(ctx, token)
 		client := queues_api.NewJobQueueWorkerServiceClient(h.conn)
@@ -675,7 +725,7 @@ func (h *jobHandler) reject(ctx context.Context) error {
 			stat, ok := status.FromError(err)
 			if !ok {
 				logger.Error("failed to reject job", "error", err)
-				delay := time.NewTimer(2 * time.Minute)
+				delay := time.NewTimer(1 * time.Minute)
 				select {
 				case <-ctx.Done():
 					delay.Stop()
@@ -701,7 +751,7 @@ func (h *jobHandler) reject(ctx context.Context) error {
 				reauth = true
 			default:
 				logger.Error("failed to reject job", "error", err)
-				delay := time.NewTimer(2 * time.Minute)
+				delay := time.NewTimer(1 * time.Minute)
 				select {
 				case <-ctx.Done():
 					delay.Stop()
@@ -724,6 +774,50 @@ func (h *jobHandler) reject(ctx context.Context) error {
 		case <-ctx.Done():
 			delay.Stop()
 			return ctx.Err()
+		case <-delay.C:
+			continue
+		}
+	}
+}
+
+// Use IMDS to reallocate the workload instance to another node.
+func reallocate(ctx context.Context, client *saladcloudimdssdk.SaladCloudImdsSdk, reason string) {
+	logger := log.FromContext(ctx)
+	logger.Warn("reallocating workload instance", "reason", reason)
+	bo := backoff.New(30*time.Second, 1*time.Second)
+	for {
+		// The client will automatically retry several times on network errors,
+		// invalid responses, 429's, and 5xx's (except 501's) using a short,
+		// exponential backoff algorithm. Eventually, it will give up and return
+		// the last error.
+		prototype := metadata.ReallocatePrototype{
+			Reason: &reason,
+		}
+		metadata_value := metadata.METADATA_TRUE
+		params := metadata.ReallocateRequestParams{
+			Metadata: &metadata_value,
+		}
+		resp, err := client.Metadata.Reallocate(ctx, prototype, params)
+		if err != nil {
+			logger.Error("failed to reallocate workload instance", "error", err)
+		}
+
+		if resp != nil {
+			switch resp.Metadata.StatusCode {
+			case http.StatusNoContent:
+				return
+			case http.StatusNotFound:
+				return
+			default:
+				logger.Error("failed to reallocate workload instance", "status", resp.Metadata.StatusCode)
+			}
+		}
+
+		delay := time.NewTimer(bo.Duration())
+		select {
+		case <-ctx.Done():
+			delay.Stop()
+			return
 		case <-delay.C:
 			continue
 		}

@@ -35,6 +35,7 @@ func StartWiremockContainer(ctx context.Context, mappings []WiremockMapping) (*W
 			Image:        "wiremock/wiremock:3.13.2-alpine",
 			Env:          map[string]string{"WIREMOCK_OPTIONS": "--disable-banner"},
 			ExposedPorts: []string{"8080/tcp"},
+			Cmd:          []string{"--verbose"},
 			Files:        files,
 			WaitingFor: wait.ForHTTP("/__admin/health").WithPort("8080").WithMethod("GET").WithStatusCodeMatcher(func(status int) bool {
 				return status == http.StatusOK

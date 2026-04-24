@@ -19,6 +19,10 @@ func main() {
 	defaultLogger.Info("starting WireMock...")
 	wiremock, err := containers.StartWiremockContainer(context.Background(), []containers.WiremockMapping{
 		{
+			Name:    "reallocate.json",
+			Content: "{\"request\":{\"method\":\"POST\",\"urlPath\":\"/v1/reallocate\"},\"response\":{\"status\":204}}",
+		},
+		{
 			Name:    "status.json",
 			Content: "{\"request\":{\"method\":\"GET\",\"urlPath\":\"/v1/status\"},\"response\":{\"status\":200,\"headers\":{\"Content-Type\":\"application/json\"},\"jsonBody\":{\"ready\":true,\"started\":true}}}",
 		},
