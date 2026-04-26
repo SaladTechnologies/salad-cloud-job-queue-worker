@@ -1,2 +1,2 @@
-fastapi[standard]==0.129.0
-matplotlib==3.10.8
+fastapi[standard]==0.136.1
+matplotlib==3.10.9
